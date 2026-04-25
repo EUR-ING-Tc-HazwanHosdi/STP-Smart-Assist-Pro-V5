@@ -85,51 +85,86 @@ def calculate_fm(flow, bod, mlss, volume):
 # =========================================================
 def decision_engine(data, plant_type):
     cfg = PLANT_CONFIG[plant_type]
-    do, mlss, nh3, svi, srt, fm = data.values()
+
+    do = data["do"]
+    mlss = data["mlss"]
+    nh3 = data["nh3"]
+    svi = data["svi"]
+    srt = data["srt"]
+    fm = data["fm"]
 
     result = {
         "status": "🟢 NORMAL",
         "issue": "Stable Operation",
-        "root": [],
+        "root_cause": [],
         "impact": [],
         "actions": [],
         "confidence": "MEDIUM"
     }
 
+    # =====================================================
+    # 1. CRITICAL FAILURE (HIGHEST PRIORITY)
+    # =====================================================
     if mlss < 500 or srt < 3:
         return {
             "status": "🔴 CRITICAL",
             "issue": "Biomass Washout",
-            "root": ["Low MLSS / SRT"],
-            "impact": ["Process failure"],
-            "actions": ["Stop wasting", "Increase SRT"],
+            "root_cause": ["Low MLSS / SRT"],
+            "impact": ["Biological process failure"],
+            "actions": ["Stop wasting sludge", "Increase SRT immediately"],
             "confidence": "HIGH"
         }
 
+    # =====================================================
+    # 2. OXYGEN PROBLEMS
+    # =====================================================
     if do < 2:
         result["status"] = "🔴 CRITICAL"
         result["issue"] = "Low DO"
-        result["root"].append("Insufficient aeration")
-        result["actions"].append("Increase aeration")
+        result["root_cause"].append("Insufficient aeration")
+        result["actions"].append("Increase aeration rate")
 
+    # =====================================================
+    # 3. AMMONIA FAILURE
+    # =====================================================
     if nh3 > 10:
+        result["status"] = "🔴 CRITICAL"
         result["issue"] = "Nitrification Failure"
-        result["root"].append("Low SRT or DO")
+        result["root_cause"].append("Low DO or SRT")
+        result["actions"].append("Increase SRT + aeration")
 
+    # =====================================================
+    # 4. SETTLING PROBLEMS
+    # =====================================================
     if svi > 150:
+        result["status"] = "🟠 WARNING"
         result["issue"] = "Bulking Risk"
-        result["root"].append("Filamentous bacteria")
+        result["root_cause"].append("Filamentous bacteria growth")
+        result["actions"].append("Check F/M ratio and sludge age")
 
+    # =====================================================
+    # 5. LOADING CONDITIONS
+    # =====================================================
     fm_low, fm_high = cfg["fm_range"]
-    if fm < fm_low:
-        result["issue"] = "Underloading"
-    elif fm > fm_high:
-        result["issue"] = "Overloading"
 
-    if not result["root"]:
-        result["root"] = ["System stable"]
+    if fm < fm_low:
+        result["status"] = "🟡 WARNING"
+        result["issue"] = "Underloading"
+        result["root_cause"].append("Low organic loading")
+
+    elif fm > fm_high:
+        result["status"] = "🟠 WARNING"
+        result["issue"] = "Overloading"
+        result["root_cause"].append("High organic loading")
+
+    # =====================================================
+    # 6. DEFAULT SAFETY FALLBACK
+    # =====================================================
+    if not result["root_cause"]:
+        result["root_cause"] = ["System stable"]
+
     if not result["actions"]:
-        result["actions"] = ["Maintain operation"]
+        result["actions"] = ["Maintain current operation"]
 
     return result
 
