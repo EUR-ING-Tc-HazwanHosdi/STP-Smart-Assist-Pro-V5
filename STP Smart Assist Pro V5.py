@@ -176,6 +176,21 @@ was_mlss = st.number_input("WAS MLSS", value=8000.0, step=None)
 flow = st.number_input("Flow", value=1000.0, step=None)
 bod = st.number_input("BOD", value=250.0, step=None)
 
+# =========================================================
+# SAFE DERIVED CALCULATIONS (ALWAYS FIRST)
+# =========================================================
+if mlss > 0 and volume > 0:
+    svi = calc_svi(sv30, mlss)
+    srt = calc_srt(mlss, volume, was_flow, was_mlss)
+    fm = calc_fm(flow, bod, mlss, volume)
+else:
+    svi = 0
+    srt = 0
+    fm = 0
+
+# =========================================================
+# NOW SAFE TO VALIDATE
+# =========================================================
 warnings, critical = input_validator(do, mlss, nh3, svi, srt, fm)
 
 st.subheader("⚠️ Input Health Check")
