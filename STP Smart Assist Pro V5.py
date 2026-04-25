@@ -257,6 +257,11 @@ if mlss < 200:
 # =========================================================
 # CALCULATIONS
 # =========================================================
+
+svi = calculate_svi(sv30, mlss)
+srt = calculate_srt(mlss, volume, was_flow, was_mlss)
+fm = calculate_fm(flow, bod, mlss, volume)
+
 data = {
     "SV30": sv30,
     "MLSS": mlss,
@@ -271,9 +276,6 @@ data = {
     "SRT": round(srt, 2),
     "F/M": round(fm, 3)
 }
-svi = calculate_svi(sv30, mlss)
-srt = calculate_srt(mlss, volume, was_flow, was_mlss)
-fm = calculate_fm(flow, bod, mlss, volume)
 
 # =========================================================
 # DIAGNOSIS
