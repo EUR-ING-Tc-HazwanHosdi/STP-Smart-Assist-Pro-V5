@@ -347,35 +347,41 @@ if img:
     st.write("Diagnosis:", diag)
     st.write("Action:", act)
 
-def generate_pdf(data, result, score, filename="STP_Report.pdf"):
+def generate_pdf(data, result, score, filename=None):
+    import os
+
+    if filename is None:
+        filename = f"/tmp/STP_Report.pdf"
+
     doc = SimpleDocTemplate(filename)
     styles = getSampleStyleSheet()
     content = []
 
     def section(title, value):
+        if isinstance(value, list):
+            value = "\n".join([f"- {v}" for v in value])
+
         content.append(Paragraph(f"<b>{title}</b>", styles["Heading2"]))
         content.append(Paragraph(str(value), styles["Normal"]))
         content.append(Spacer(1, 10))
 
-    # HEADER
-    content.append(Paragraph("🌊 STP SMART ASSIST PRO - ENGINEERING REPORT", styles["Title"]))
+    content.append(Paragraph(
+        "🌊 STP SMART ASSIST PRO - ENGINEERING REPORT",
+        styles["Title"]
+    ))
     content.append(Spacer(1, 15))
 
-    # INPUT DATA
     section("PROCESS INPUTS", data)
-
-    # DIAGNOSIS
-    section("STATUS", result[0])
-    section("PROCESS CONDITION", result[1])
-
-    section("ISSUES", result[2])
-    section("ACTIONS", result[3])
-
-    # SCORE
+    section("STATUS", result["status"])
+    section("PROCESS CONDITION", result["process"])
+    section("ISSUES", result["issues"])
+    section("ACTIONS", result["actions"])
     section("STABILITY SCORE", f"{score}/100")
 
-    content.append(Spacer(1, 20))
-    content.append(Paragraph("END OF REPORT", styles["Normal"]))
-
     doc.build(content)
+
+    # IMPORTANT CHECK
+    if not os.path.exists(filename):
+        raise FileNotFoundError("PDF generation failed")
+
     return filename
