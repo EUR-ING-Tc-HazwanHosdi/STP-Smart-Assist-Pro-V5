@@ -291,10 +291,22 @@ for c in compliance_check(svi, do, nh3, srt):
 st.session_state["report_data"] = data.copy()
 st.session_state["report_result"] = result.copy()
 
-if st.button("Generate PDF"):
-    f = generate_pdf(data, result)
-    with open(f, "rb") as file:
-        st.download_button("Download", file)
+if st.button("Generate PDF Report"):
+
+    data_safe = st.session_state.get("report_data")
+    result_safe = st.session_state.get("report_result")
+
+    st.write("DEBUG DATA:", data_safe)   # TEMP DEBUG (IMPORTANT)
+
+    file_path = generate_pdf(data_safe, result_safe)
+
+    with open(file_path, "rb") as f:
+        st.download_button(
+            "Download PDF",
+            f,
+            file_name="STP_Report.pdf",
+            mime="application/pdf"
+        )
 
 # IMAGE
 img = st.file_uploader("Upload Image")
