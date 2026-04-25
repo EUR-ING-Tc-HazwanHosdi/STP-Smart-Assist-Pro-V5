@@ -1,202 +1,168 @@
 import streamlit as st
 import numpy as np
-import cv2
-from PIL import Image
 import json
 import os
-import hashlib
+from sklearn.linear_model import LogisticRegression
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 
 # =========================================================
 # CONFIG
 # =========================================================
-st.set_page_config("STP Smart Assist Pro", layout="wide")
+st.set_page_config("STP Smart Assist Pro V8.3", layout="wide")
 
-USER_DB_FILE = "users.json"
+DATA_FILE = "plant_memory.json"
 
 # =========================================================
-# USER SYSTEM
+# PLANT CONFIG
 # =========================================================
-def load_users():
-    if not os.path.exists(USER_DB_FILE):
-        return {}
-    with open(USER_DB_FILE, "r") as f:
+PLANT_CONFIG = {
+    "Extended Aeration": {"fm_range": (0.05, 0.3), "srt_min": 8},
+    "SBR": {"fm_range": (0.08, 0.4), "srt_min": 10},
+    "MBBR": {"fm_range": (0.1, 0.5), "srt_min": 5},
+    "Oxidation Ditch": {"fm_range": (0.05, 0.25), "srt_min": 12},
+}
+
+# =========================================================
+# MEMORY SYSTEM
+# =========================================================
+def load_data():
+    if not os.path.exists(DATA_FILE):
+        return []
+    with open(DATA_FILE, "r") as f:
         return json.load(f)
 
-def save_users(users):
-    with open(USER_DB_FILE, "w") as f:
-        json.dump(users, f)
+def save_data(data):
+    with open(DATA_FILE, "w") as f:
+        json.dump(data, f)
 
-def hash_password(password):
-    return hashlib.sha256(password.encode()).hexdigest()
+# =========================================================
+# ENGINEERING CALCULATIONS
+# =========================================================
+def calc_svi(sv30, mlss):
+    return (sv30 * 1000) / mlss if mlss else 0
 
-def get_user(username):
-    return load_users().get(username)
+def calc_srt(mlss, volume, was_flow, was_mlss):
+    return (mlss * volume) / (was_flow * was_mlss) if was_flow and was_mlss else 0
 
-def create_user(username, password, name):
-    users = load_users()
-    if username in users:
-        return False
+def calc_fm(flow, bod, mlss, volume):
+    return (flow * bod) / (mlss * volume) if mlss and volume else 0
 
-    users[username] = {
-        "username": username,
-        "password": hash_password(password),
-        "name": name
+# =========================================================
+# ENGINE LOGIC
+# =========================================================
+def decision_engine(do, mlss, nh3, svi, srt, fm, plant):
+
+    cfg = PLANT_CONFIG[plant]
+
+    result = {
+        "status": "🟢 NORMAL",
+        "process": "Stable Operation",
+        "issues": [],
+        "actions": []
     }
 
-    save_users(users)
-    return True
-
-def authenticate(username, password):
-    user = get_user(username)
-    return user and user["password"] == hash_password(password)
-
-# =========================================================
-# ENGINE
-# =========================================================
-def calculate_svi(sv30, mlss):
-    return (sv30 * 1000) / mlss if mlss > 0 else 0
-
-def calculate_srt(mlss, volume, was_flow, was_mlss):
-    return (mlss * volume) / (was_flow * was_mlss) if was_flow > 0 and was_mlss > 0 else 0
-
-def calculate_fm(flow, bod, mlss, volume):
-    return (flow * bod) / (mlss * volume) if mlss > 0 and volume > 0 else 0
-
-# =========================================================
-# DIAGNOSIS ENGINE
-# =========================================================
-def diagnose_process(do, mlss, nh3, svi, srt, fm):
-
-    issues = []
-    actions = []
-
-    if mlss < 500 or srt < 3:
+    # CRITICAL FAILURE
+    if mlss < 500 or srt < cfg["srt_min"]:
         return {
-            "status": "🔴 Critical",
-            "process": "Biomass Washout",
+            "status": "🔴 CRITICAL",
+            "process": "Biomass Washout Risk",
             "issues": ["Low MLSS / SRT"],
-            "actions": ["Stop wasting sludge", "Increase SRT"],
-            "confidence": "HIGH"
+            "actions": ["Stop wasting sludge", "Increase SRT immediately"]
         }
 
-    status = "🟢 Normal"
-    process = "Stable Operation"
-
+    # CONDITIONS
     if do < 2:
-        status = "🔴 Critical"
-        issues.append("Low DO")
-        actions.append("Increase aeration")
+        result["issues"].append("Low DO")
+        result["actions"].append("Increase aeration")
 
     if nh3 > 10:
-        status = "🔴 Critical"
-        issues.append("High NH3")
-        actions.append("Increase aeration + SRT")
+        result["issues"].append("High Ammonia")
+        result["actions"].append("Improve nitrification")
 
     if svi > 150:
-        issues.append("Bulking Risk")
-        actions.append("Check sludge condition")
+        result["issues"].append("Bulking risk")
+        result["actions"].append("Check sludge settleability")
 
-    if not issues:
-        issues = ["System Stable"]
-        actions = ["Maintain operation"]
+    fm_low, fm_high = cfg["fm_range"]
 
-    return {
-        "status": status,
-        "process": process,
-        "issues": issues,
-        "actions": actions,
-        "confidence": "MEDIUM"
-    }
+    if fm < fm_low:
+        result["process"] = "Underloaded"
+    elif fm > fm_high:
+        result["process"] = "Overloaded"
 
-# =========================================================
-# SCORE
-# =========================================================
-def stability_score(svi, mlss, do, srt, fm):
-    score = 100
-    if mlss < 1500: score -= 20
-    if svi > 150: score -= 20
-    if do < 2: score -= 20
-    if srt < 3: score -= 30
-    if fm < 0.1 or fm > 0.5: score -= 10
-    return max(0, min(100, score))
+    if do < 2 and nh3 > 10:
+        result["process"] = "Nitrification Failure"
+
+    if not result["issues"]:
+        result["issues"] = ["System Stable"]
+        result["actions"] = ["Maintain operation"]
+
+    return result
 
 # =========================================================
-# PDF GENERATOR (FIXED)
+# SIMPLE ML MODEL
+# =========================================================
+def train_model():
+    data = load_data()
+
+    if len(data) < 10:
+        return None
+
+    X = []
+    y = []
+
+    for d in data:
+        X.append([d["do"], d["mlss"], d["nh3"], d["svi"], d["srt"], d["fm"]])
+        y.append(d["failure"])
+
+    model = LogisticRegression()
+    model.fit(X, y)
+
+    return model
+
+def predict_risk(model, x):
+    if model is None:
+        return 0.0
+    return model.predict_proba([x])[0][1]
+
+# =========================================================
+# PDF GENERATOR (FIXED SAFE VERSION)
 # =========================================================
 def generate_pdf(data, result, score):
-    filename = "STP_Report.pdf"
+    filename = "STP_Report_V8_3.pdf"
+
     doc = SimpleDocTemplate(filename)
     styles = getSampleStyleSheet()
     content = []
 
-    content.append(Paragraph("🌊 STP SMART ASSIST PRO REPORT", styles["Title"]))
+    content.append(Paragraph("🌊 STP SMART ASSIST PRO V8.3 REPORT", styles["Title"]))
     content.append(Spacer(1, 12))
 
-    content.append(Paragraph(f"Status: {result['status']}", styles["Heading2"]))
-    content.append(Paragraph(f"Process: {result['process']}", styles["Normal"]))
+    content.append(Paragraph(f"STATUS: {result['status']}", styles["Heading2"]))
+    content.append(Paragraph(f"PROCESS: {result['process']}", styles["Normal"]))
     content.append(Spacer(1, 10))
 
-    content.append(Paragraph("Issues:", styles["Heading2"]))
+    content.append(Paragraph("ISSUES:", styles["Heading2"]))
     content.append(Paragraph(", ".join(result["issues"]), styles["Normal"]))
     content.append(Spacer(1, 10))
 
-    content.append(Paragraph("Actions:", styles["Heading2"]))
+    content.append(Paragraph("ACTIONS:", styles["Heading2"]))
     content.append(Paragraph(", ".join(result["actions"]), styles["Normal"]))
     content.append(Spacer(1, 10))
 
-    content.append(Paragraph(f"Score: {score}/100", styles["Heading2"]))
-    content.append(Spacer(1, 10))
+    content.append(Paragraph(f"STABILITY SCORE: {score}/100", styles["Heading2"]))
 
     doc.build(content)
-    return filename
 
-# =========================================================
-# SESSION
-# =========================================================
-if "user" not in st.session_state:
-    st.session_state["user"] = None
+    return filename
 
 # =========================================================
 # UI
 # =========================================================
-st.title("🌊 STP Smart Assist Pro")
+st.title("🌊 STP Smart Assist Pro V8.3 - AI ENGINE SYSTEM")
 
-tab1, tab2 = st.tabs(["Login", "Register"])
-
-with tab1:
-    u = st.text_input("Username")
-    p = st.text_input("Password", type="password")
-
-    if st.button("Login"):
-        if authenticate(u, p):
-            st.session_state["user"] = get_user(u)
-            st.rerun()
-        else:
-            st.error("Invalid credentials")
-
-with tab2:
-    ru = st.text_input("Username", key="ru")
-    rp = st.text_input("Password", key="rp", type="password")
-    rn = st.text_input("Name")
-
-    if st.button("Register"):
-        if create_user(ru, rp, rn):
-            st.success("Account created")
-        else:
-            st.error("User exists")
-
-user = st.session_state.get("user")
-if not user:
-    st.stop()
-
-st.header(f"Welcome {user['name']}")
-
-# =========================================================
-# INPUTS
-# =========================================================
-st.subheader("Process Inputs")
+plant = st.selectbox("Plant Type", list(PLANT_CONFIG.keys()))
 
 sv30 = st.number_input("SV30", 250.0)
 mlss = st.number_input("MLSS", 3000.0)
@@ -211,43 +177,85 @@ flow = st.number_input("Flow", 1000.0)
 bod = st.number_input("BOD", 250.0)
 
 # =========================================================
-# CALC
+# CALCULATIONS
 # =========================================================
-svi = calculate_svi(sv30, mlss)
-srt = calculate_srt(mlss, volume, was_flow, was_mlss)
-fm = calculate_fm(flow, bod, mlss, volume)
+svi = calc_svi(sv30, mlss)
+srt = calc_srt(mlss, volume, was_flow, was_mlss)
+fm = calc_fm(flow, bod, mlss, volume)
 
-result = diagnose_process(do, mlss, nh3, svi, srt, fm)
-score = stability_score(svi, mlss, do, srt, fm)
+# =========================================================
+# ENGINE
+# =========================================================
+result = decision_engine(do, mlss, nh3, svi, srt, fm, plant)
+
+# =========================================================
+# ML PREDICTION
+# =========================================================
+model = train_model()
+risk = predict_risk(model, [do, mlss, nh3, svi, srt, fm])
+
+# =========================================================
+# SCORE
+# =========================================================
+score = 100
+if do < 2: score -= 20
+if svi > 150: score -= 20
+if nh3 > 10: score -= 20
 
 # =========================================================
 # OUTPUT
 # =========================================================
-st.subheader("Diagnosis")
+st.subheader("🧠 Engineering Result")
 st.json(result)
 
-st.metric("Score", score)
+st.subheader("📊 AI Risk Prediction")
+
+if risk > 0.7:
+    st.error(f"🔴 HIGH RISK: {risk:.2%}")
+elif risk > 0.4:
+    st.warning(f"🟠 MEDIUM RISK: {risk:.2%}")
+else:
+    st.success(f"🟢 LOW RISK: {risk:.2%}")
+
+st.metric("Stability Score", score)
 
 # =========================================================
-# PDF BUTTON (FIXED SAFE)
+# SAVE MEMORY (LEARNING)
 # =========================================================
-st.subheader("Report")
+if st.button("Save Case to AI Memory"):
+    data = load_data()
 
-if st.button("Generate PDF"):
-    file_path = generate_pdf(
+    data.append({
+        "do": do,
+        "mlss": mlss,
+        "nh3": nh3,
+        "svi": svi,
+        "srt": srt,
+        "fm": fm,
+        "failure": 1 if risk > 0.6 else 0
+    })
+
+    save_data(data)
+    st.success("Case saved to AI memory")
+
+# =========================================================
+# PDF EXPORT
+# =========================================================
+if st.button("Generate PDF Report"):
+    file = generate_pdf(
         {
             "SVI": svi,
             "SRT": srt,
-            "FM": fm
+            "F/M": fm
         },
         result,
         score
     )
 
-    with open(file_path, "rb") as f:
+    with open(file, "rb") as f:
         st.download_button(
-            "Download PDF",
+            "Download Report",
             f,
-            file_name="STP_Report.pdf",
+            file_name=file,
             mime="application/pdf"
         )
