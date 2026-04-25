@@ -147,24 +147,58 @@ def compliance_check(svi, do, nh3, srt):
 # =========================================================
 # PDF
 # =========================================================
-def generate_pdf(data, result):
-    file = "report.pdf"
-    doc = SimpleDocTemplate(file)
+
+def generate_pdf(data, result, filename="stp_report.pdf"):
+    doc = SimpleDocTemplate(filename)
     styles = getSampleStyleSheet()
     content = []
 
-    content.append(Paragraph("STP REPORT", styles['Title']))
+    def add(title, value):
+        content.append(Paragraph(title, styles["Heading2"]))
+        content.append(Paragraph(str(value), styles["Normal"]))
+        content.append(Spacer(1, 10))
+
+    # TITLE
+    content.append(Paragraph("STP SMART ASSIST REPORT", styles["Title"]))
+    content.append(Spacer(1, 15))
+
+    # INPUT DATA
+    add("INPUT DATA", "")
     for k, v in data.items():
-        content.append(Paragraph(f"{k}: {round(v,2)}", styles['Normal']))
+        content.append(Paragraph(f"{k}: {v}", styles["Normal"]))
 
     content.append(Spacer(1, 10))
-    content.append(Paragraph(result["issue"], styles['Heading2']))
 
-    for r in result["root"]:
-        content.append(Paragraph(f"• {r}", styles['Normal']))
+    # STATUS
+    add("STATUS", result.get("status", "N/A"))
+    add("ISSUE", result.get("issue", "N/A"))
+
+    # ROOT CAUSE
+    add("ROOT CAUSE", "")
+    for r in result.get("root_cause", []):
+        content.append(Paragraph(f"• {r}", styles["Normal"]))
+
+    content.append(Spacer(1, 10))
+
+    # IMPACT
+    add("IMPACT", "")
+    for i in result.get("impact", []):
+        content.append(Paragraph(f"• {i}", styles["Normal"]))
+
+    content.append(Spacer(1, 10))
+
+    # ACTIONS
+    add("ACTIONS", "")
+    for a in result.get("actions", []):
+        content.append(Paragraph(f"• {a}", styles["Normal"]))
+
+    content.append(Spacer(1, 10))
+
+    # CONFIDENCE
+    add("CONFIDENCE", result.get("confidence", "N/A"))
 
     doc.build(content)
-    return file
+    return filename
 
 # =========================================================
 # UI
