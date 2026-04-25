@@ -9,7 +9,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 # =========================================================
 # CONFIG
 # =========================================================
-st.set_page_config("STP Smart Assist Pro V8.3", layout="wide")
+st.set_page_config("STP Smart Assist Pro V8.3 HYBRID AI", layout="wide")
 
 DATA_FILE = "plant_memory.json"
 
@@ -49,7 +49,7 @@ def calc_fm(flow, bod, mlss, volume):
     return (flow * bod) / (mlss * volume) if mlss and volume else 0
 
 # =========================================================
-# INPUT VALIDATION (FIXED POSITION)
+# INPUT VALIDATION
 # =========================================================
 def input_validator(do, mlss, nh3, svi, srt, fm):
     warnings = []
@@ -160,10 +160,58 @@ def train_model():
 
     return model
 
-def predict_risk(model, x):
+# =========================================================
+# HYBRID AI ENGINE (NEW)
+# =========================================================
+def hybrid_risk(model, x, svi, nh3, do, mlss, srt):
+
+    # -------------------------------
+    # RULE-BASED RISK (ENGINEERING)
+    # -------------------------------
+    risk_rule = 0.0
+
+    if do < 1:
+        risk_rule += 0.35
+    elif do < 2:
+        risk_rule += 0.20
+
+    if nh3 > 20:
+        risk_rule += 0.35
+    elif nh3 > 10:
+        risk_rule += 0.20
+
+    if svi > 200:
+        risk_rule += 0.30
+    elif svi > 150:
+        risk_rule += 0.15
+
+    if mlss < 1500:
+        risk_rule += 0.25
+
+    if srt < 5:
+        risk_rule += 0.25
+
+    risk_rule = min(risk_rule, 1.0)
+
+    # -------------------------------
+    # ML RISK
+    # -------------------------------
     if model is None:
-        return 0.0
-    return model.predict_proba([x])[0][1]
+        risk_ml = None
+    else:
+        risk_ml = model.predict_proba([x])[0][1]
+
+    # -------------------------------
+    # FINAL HYBRID SCORE
+    # -------------------------------
+    if risk_ml is None:
+        final_risk = risk_rule
+        confidence = 0.55
+    else:
+        final_risk = (0.6 * risk_rule) + (0.4 * risk_ml)
+        confidence = 0.85
+
+    return final_risk, confidence, risk_rule, risk_ml
 
 # =========================================================
 # PDF GENERATOR
@@ -175,7 +223,7 @@ def generate_pdf(result, score):
     styles = getSampleStyleSheet()
     content = []
 
-    content.append(Paragraph("🌊 STP SMART ASSIST PRO V8.3 REPORT", styles["Title"]))
+    content.append(Paragraph("🌊 STP SMART ASSIST PRO V8.3 HYBRID AI", styles["Title"]))
     content.append(Spacer(1, 12))
 
     content.append(Paragraph(f"STATUS: {result['status']}", styles["Heading2"]))
@@ -198,7 +246,7 @@ def generate_pdf(result, score):
 # =========================================================
 # UI
 # =========================================================
-st.title("🌊 STP Smart Assist Pro V8.3 - AI ENGINE SYSTEM")
+st.title("🌊 STP Smart Assist Pro V8.3 - HYBRID AI ENGINE")
 
 plant = st.selectbox("Plant Type", list(PLANT_CONFIG.keys()))
 
@@ -215,7 +263,7 @@ flow = st.number_input("Flow", value=1000.0)
 bod = st.number_input("BOD", value=250.0)
 
 # =========================================================
-# SAFE CALCULATIONS (ONCE ONLY)
+# CALCULATIONS
 # =========================================================
 svi = calc_svi(sv30, mlss)
 srt = calc_srt(mlss, volume, was_flow, was_mlss)
@@ -243,20 +291,40 @@ if not warnings and not critical:
 result = decision_engine(do, mlss, nh3, svi, srt, fm, plant)
 
 # =========================================================
-# ML
+# ML + HYBRID AI
 # =========================================================
 model = train_model()
-risk = predict_risk(model, [do, mlss, nh3, svi, srt, fm])
+
+risk, confidence, risk_rule, risk_ml = hybrid_risk(
+    model,
+    [do, mlss, nh3, svi, srt, fm],
+    svi, nh3, do, mlss, srt
+)
 
 # =========================================================
 # SCORE
 # =========================================================
 score = 100
-if do < 2:
+
+if do < 1:
+    score -= 30
+elif do < 2:
     score -= 20
-if svi > 150:
+
+if svi > 200:
+    score -= 30
+elif svi > 150:
     score -= 20
-if nh3 > 10:
+
+if nh3 > 20:
+    score -= 30
+elif nh3 > 10:
+    score -= 20
+
+if mlss < 1500:
+    score -= 20
+
+if srt < 5:
     score -= 20
 
 # =========================================================
@@ -265,14 +333,23 @@ if nh3 > 10:
 st.subheader("🧠 Engineering Result")
 st.json(result)
 
-st.subheader("📊 AI Risk Prediction")
+st.subheader("📊 HYBRID AI RISK ENGINE")
+
+st.write(f"🧠 Final Risk: {risk:.2%}")
+st.write(f"🎯 Confidence: {confidence:.2%}")
+
+st.progress(min(int(risk * 100), 100))
 
 if risk > 0.7:
-    st.error(f"🔴 HIGH RISK: {risk:.2%}")
+    st.error("🔴 HIGH RISK")
 elif risk > 0.4:
-    st.warning(f"🟠 MEDIUM RISK: {risk:.2%}")
+    st.warning("🟠 MEDIUM RISK")
 else:
-    st.success(f"🟢 LOW RISK: {risk:.2%}")
+    st.success("🟢 LOW RISK")
+
+with st.expander("🔍 Breakdown"):
+    st.write(f"Rule-based risk: {risk_rule:.2%}")
+    st.write(f"ML risk: {risk_ml if risk_ml is not None else 'Not trained yet'}")
 
 st.metric("Stability Score", score)
 
@@ -293,7 +370,7 @@ if st.button("Save Case to AI Memory"):
     })
 
     save_data(data)
-    st.success("Case saved to AI memory")
+    st.success("Case saved")
 
 # =========================================================
 # PDF EXPORT
