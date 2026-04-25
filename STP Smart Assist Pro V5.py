@@ -2,15 +2,15 @@ import streamlit as st
 import numpy as np
 import json
 import os
-import time
+from datetime import datetime
 from sklearn.linear_model import LogisticRegression
 
 # =========================================================
 # CONFIG
 # =========================================================
-st.set_page_config("STP SCADA Industrial AI v2", layout="wide")
+st.set_page_config("STP SCADA Autonomous AI v4", layout="wide")
 
-DATA_FILE = "scada_stp_memory.json"
+DATA_FILE = "scada_v4_history.json"
 
 # =========================================================
 # PLANT CONFIG
@@ -23,7 +23,7 @@ PLANT_CONFIG = {
 }
 
 # =========================================================
-# MEMORY
+# MEMORY (SCADA HISTORIAN)
 # =========================================================
 def load_data():
     if not os.path.exists(DATA_FILE):
@@ -36,7 +36,7 @@ def save_data(data):
         json.dump(data, f)
 
 # =========================================================
-# CALCULATIONS
+# ENGINEERING CALC
 # =========================================================
 def calc_svi(sv30, mlss):
     return (sv30 * 1000) / mlss if mlss else 0
@@ -48,83 +48,132 @@ def calc_fm(flow, bod, mlss, volume):
     return (flow * bod) / (mlss * volume) if mlss and volume else 0
 
 # =========================================================
-# SCADA ANOMALY ENGINE
+# ANOMALY ENGINE
 # =========================================================
-def anomaly_score(do, nh3, svi, mlss, srt):
-
+def anomaly(do, nh3, svi, mlss, srt):
     score = 0
 
-    # DO trend stress
-    if do < 0.5:
-        score += 0.35
-    elif do < 1:
-        score += 0.25
-    elif do < 2:
-        score += 0.10
+    if do < 1: score += 0.35
+    elif do < 2: score += 0.20
 
-    # Ammonia loading
-    if nh3 > 25:
-        score += 0.35
-    elif nh3 > 15:
-        score += 0.20
+    if nh3 > 20: score += 0.35
+    elif nh3 > 10: score += 0.20
 
-    # Sludge settleability
-    if svi > 200:
-        score += 0.30
-    elif svi > 150:
-        score += 0.15
+    if svi > 180: score += 0.30
 
-    # Biomass health
-    if mlss < 1500:
-        score += 0.25
+    if mlss < 1500: score += 0.25
 
-    # SRT instability
-    if srt < 3:
-        score += 0.30
-    elif srt < 5:
-        score += 0.15
+    if srt < 5: score += 0.30
 
     return min(score, 1.0)
 
 # =========================================================
-# ENGINE LOGIC
+# DIGITAL TWIN FORECAST (48H SIMULATION)
+# =========================================================
+def forecast(do, nh3, svi):
+
+    return {
+        "DO_48h": max(do - np.random.uniform(0.5, 1.2), 0),
+        "NH3_48h": nh3 + np.random.uniform(2, 8),
+        "SVI_48h": svi + np.random.uniform(10, 40)
+    }
+
+# =========================================================
+# AUTONOMOUS CONTROL ENGINE (KEY UPGRADE)
+# =========================================================
+def autonomous_control(do, nh3, svi, mlss, srt):
+
+    actions = []
+
+    # =====================================================
+    # ENERGY OPTIMIZATION (AERATION CONTROL)
+    # =====================================================
+    if do > 4:
+        actions.append({
+            "priority": "LOW",
+            "action": "Reduce blower speed (-10% to -20%)",
+            "reason": "Excess dissolved oxygen = energy waste"
+        })
+
+    elif do < 1:
+        actions.append({
+            "priority": "HIGH",
+            "action": "Increase blower capacity (+30–50%)",
+            "reason": "Critical oxygen deficit affecting biology"
+        })
+
+    # =====================================================
+    # LOAD CONTROL
+    # =====================================================
+    if nh3 > 20:
+        actions.append({
+            "priority": "HIGH",
+            "action": "Reduce influent load / equalization needed",
+            "reason": "Nitrification failure risk"
+        })
+
+    # =====================================================
+    # SLUDGE CONTROL
+    # =====================================================
+    if svi > 180:
+        actions.append({
+            "priority": "HIGH",
+            "action": "Adjust RAS/WAS balance (reduce WAS)",
+            "reason": "Sludge bulking detected"
+        })
+
+    # =====================================================
+    # SRT CONTROL
+    # =====================================================
+    if srt < 5:
+        actions.append({
+            "priority": "CRITICAL",
+            "action": "Stop sludge wasting immediately",
+            "reason": "Biomass washout risk"
+        })
+
+    return sorted(actions, key=lambda x: x["priority"], reverse=True)
+
+# =========================================================
+# CONTROL IMPACT SIMULATION
+# =========================================================
+def simulate_action(do, nh3, svi, action):
+
+    if "blower" in action.lower():
+        do_new = min(do + 1.5, 8)
+        nh3_new = max(nh3 - 2, 0)
+    else:
+        do_new = do
+        nh3_new = nh3
+
+    if "sludge" in action.lower() or "wasting" in action.lower():
+        svi_new = max(svi - 20, 80)
+    else:
+        svi_new = svi
+
+    return do_new, nh3_new, svi_new
+
+# =========================================================
+# DECISION ENGINE
 # =========================================================
 def decision_engine(do, mlss, nh3, svi, srt, fm, plant):
 
     cfg = PLANT_CONFIG[plant]
 
-    result = {
-        "status": "🟢 STABLE",
-        "process": "Normal Operation",
-        "issues": [],
-        "actions": []
-    }
-
     if mlss < 500 or srt < cfg["srt_min"]:
         return {
             "status": "🔴 CRITICAL",
-            "process": "Biomass Failure Risk",
-            "issues": ["Low MLSS / SRT"],
-            "actions": ["Stop wasting sludge", "Increase SRT immediately"]
+            "summary": "Biomass collapse risk detected",
+            "reason": ["Low MLSS or SRT failure"],
+            "actions": ["Emergency sludge retention required"]
         }
 
-    if do < 2:
-        result["issues"].append("Low DO")
-        result["actions"].append("Increase aeration")
-
-    if nh3 > 10:
-        result["issues"].append("High NH3 load")
-        result["actions"].append("Improve nitrification")
-
-    if svi > 150:
-        result["issues"].append("Bulking risk")
-        result["actions"].append("Check sludge settleability")
-
-    if not result["issues"]:
-        result["issues"] = ["System Stable"]
-        result["actions"] = ["Maintain operation"]
-
-    return result
+    return {
+        "status": "🟠 CONTROL MODE ACTIVE",
+        "summary": "System requires optimization",
+        "reason": ["Operational stress detected"],
+        "actions": []
+    }
 
 # =========================================================
 # ML MODEL
@@ -132,11 +181,10 @@ def decision_engine(do, mlss, nh3, svi, srt, fm, plant):
 def train_model():
     data = load_data()
 
-    if len(data) < 20:
+    if len(data) < 25:
         return None
 
-    X = []
-    y = []
+    X, y = [], []
 
     for d in data:
         X.append([d["do"], d["mlss"], d["nh3"], d["svi"], d["srt"], d["fm"]])
@@ -148,38 +196,27 @@ def train_model():
     return model
 
 # =========================================================
-# HYBRID SCADA RISK ENGINE
+# HYBRID RISK
 # =========================================================
-def scada_risk(model, x, do, nh3, svi, mlss, srt):
+def hybrid_risk(model, x, do, nh3, svi, mlss, srt):
 
-    rule = anomaly_score(do, nh3, svi, mlss, srt)
+    rule = anomaly(do, nh3, svi, mlss, srt)
 
     if model is None:
         ml = None
         final = rule
-        confidence = 0.60
+        confidence = 0.65
     else:
         ml = model.predict_proba([x])[0][1]
         final = (0.7 * rule) + (0.3 * ml)
-        confidence = 0.85
+        confidence = 0.88
 
     return final, confidence, rule, ml
 
 # =========================================================
-# DIGITAL TWIN (SIMULATION)
-# =========================================================
-def simulate_future(do, nh3, svi):
-
-    return {
-        "DO_24h": max(do - np.random.uniform(0.2, 0.8), 0),
-        "NH3_24h": nh3 + np.random.uniform(1, 5),
-        "SVI_24h": svi + np.random.uniform(5, 20)
-    }
-
-# =========================================================
 # UI
 # =========================================================
-st.title("🏭 STP SCADA Industrial AI v2 - Digital Twin System")
+st.title("🏭 STP SCADA Autonomous Control AI v4")
 
 plant = st.selectbox("Plant Type", list(PLANT_CONFIG.keys()))
 
@@ -199,7 +236,7 @@ with col2:
     bod = st.number_input("BOD", value=250.0)
 
 # =========================================================
-# CALCULATIONS
+# CALC
 # =========================================================
 svi = calc_svi(sv30, mlss)
 srt = calc_srt(mlss, volume, was_flow, was_mlss)
@@ -210,74 +247,78 @@ fm = calc_fm(flow, bod, mlss, volume)
 # =========================================================
 result = decision_engine(do, mlss, nh3, svi, srt, fm, plant)
 
-# =========================================================
-# ML + SCADA RISK
-# =========================================================
 model = train_model()
 
-risk, confidence, rule_risk, ml_risk = scada_risk(
+risk, confidence, rule_risk, ml_risk = hybrid_risk(
     model,
     [do, mlss, nh3, svi, srt, fm],
     do, nh3, svi, mlss, srt
 )
 
-# =========================================================
-# DIGITAL TWIN FORECAST
-# =========================================================
-forecast = simulate_future(do, nh3, svi)
+forecast_data = forecast(do, nh3, svi)
+
+actions = autonomous_control(do, nh3, svi, mlss, srt)
 
 # =========================================================
-# KPI DASHBOARD (SCADA STYLE)
+# DASHBOARD
 # =========================================================
-st.subheader("📊 SCADA Live KPIs")
+st.subheader("📊 SCADA Control Dashboard")
 
-k1, k2, k3, k4 = st.columns(4)
+c1, c2, c3, c4 = st.columns(4)
+c1.metric("DO", f"{do:.2f}")
+c2.metric("NH3", f"{nh3:.2f}")
+c3.metric("SVI", f"{svi:.2f}")
+c4.metric("SRT", f"{srt:.2f}")
 
-k1.metric("DO", f"{do:.2f}")
-k2.metric("NH3", f"{nh3:.2f}")
-k3.metric("SVI", f"{svi:.2f}")
-k4.metric("SRT", f"{srt:.2f}")
+# =========================================================
+# CONTROL ACTIONS (AUTOPILOT)
+# =========================================================
+st.subheader("🤖 Autonomous Control Recommendations")
 
-st.subheader("⚠️ Alarm System")
+for a in actions:
+    st.write(f"⚙️ {a['action']}")
+    st.caption(f"Reason: {a['reason']} | Priority: {a['priority']}")
+
+# =========================================================
+# SIMULATION MODE
+# =========================================================
+st.subheader("🧪 What-if Simulation (First Action)")
+
+if actions:
+    do_new, nh3_new, svi_new = simulate_action(do, nh3, svi, actions[0]["action"])
+
+    st.write("After applying top action:")
+    st.write(f"DO → {do_new:.2f}")
+    st.write(f"NH3 → {nh3_new:.2f}")
+    st.write(f"SVI → {svi_new:.2f}")
+
+# =========================================================
+# FORECAST
+# =========================================================
+st.subheader("📉 48H Digital Twin Forecast")
+
+st.write(f"DO → {forecast_data['DO_48h']:.2f}")
+st.write(f"NH3 → {forecast_data['NH3_48h']:.2f}")
+st.write(f"SVI → {forecast_data['SVI_48h']:.2f}")
+
+# =========================================================
+# STATUS
+# =========================================================
+st.subheader("🚨 System Status")
 
 if risk > 0.7:
-    st.error("🔴 CRITICAL ALARM")
+    st.error("🔴 AUTONOMOUS SYSTEM HIGH RISK")
 elif risk > 0.4:
-    st.warning("🟠 WARNING ALERT")
+    st.warning("🟠 CONTROL OPTIMIZATION REQUIRED")
 else:
-    st.success("🟢 NORMAL OPERATION")
+    st.success("🟢 STABLE")
 
 st.progress(int(risk * 100))
 
 # =========================================================
-# DIGITAL TWIN VIEW
+# SAVE
 # =========================================================
-st.subheader("🧬 24H Digital Twin Forecast")
-
-st.write(f"DO → {forecast['DO_24h']:.2f}")
-st.write(f"NH3 → {forecast['NH3_24h']:.2f}")
-st.write(f"SVI → {forecast['SVI_24h']:.2f}")
-
-# =========================================================
-# ENGINE OUTPUT
-# =========================================================
-st.subheader("🧠 Engineering Decision Engine")
-st.json(result)
-
-# =========================================================
-# RISK BREAKDOWN
-# =========================================================
-with st.expander("🔍 SCADA Risk Breakdown"):
-    st.write(f"Rule Risk: {rule_risk:.2%}")
-    st.write(f"ML Risk: {ml_risk if ml_risk is not None else 'Not trained'}")
-    st.write(f"Confidence: {confidence:.2%}")
-
-st.metric("Plant Stability Index", f"{100*(1-risk):.1f}%")
-
-# =========================================================
-# SAVE DATA
-# =========================================================
-if st.button("Save SCADA Case"):
+if st.button("Save Autonomous Snapshot"):
     data = load_data()
 
     data.append({
@@ -291,4 +332,5 @@ if st.button("Save SCADA Case"):
     })
 
     save_data(data)
-    st.success("Saved to SCADA memory system")
+
+    st.success("Saved to autonomous SCADA memory")
