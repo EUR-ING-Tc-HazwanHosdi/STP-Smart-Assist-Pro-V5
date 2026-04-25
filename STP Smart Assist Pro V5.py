@@ -49,53 +49,6 @@ def calc_fm(flow, bod, mlss, volume):
     return (flow * bod) / (mlss * volume) if mlss and volume else 0
 
 # =========================================================
-# INPUT VALIDATION LAYER (ADD HERE)
-# =========================================================
-def input_validator(do, mlss, nh3, svi, srt, fm):
-    warnings = []
-    critical = []
-
-    # DO
-    if do < 0:
-        critical.append("DO impossible (negative value)")
-    elif do < 1:
-        warnings.append("Very low DO - process failure likely")
-    elif do > 10:
-        warnings.append("Unusually high DO - sensor check recommended")
-
-    # MLSS
-    if mlss < 500:
-        critical.append("Severe biomass loss risk")
-    elif mlss < 1500:
-        warnings.append("Low biomass concentration")
-
-    # NH3
-    if nh3 > 50:
-        critical.append("Extreme ammonia loading")
-    elif nh3 > 20:
-        warnings.append("High ammonia load")
-
-    # SVI
-    if svi > 200:
-        warnings.append("Severe bulking condition")
-    elif svi > 150:
-        warnings.append("Bulking risk")
-
-    # SRT
-    if srt < 2:
-        critical.append("System collapse risk (very low SRT)")
-    elif srt < 5:
-        warnings.append("Low SRT - unstable biomass")
-
-    # F/M
-    if fm > 1:
-        warnings.append("Very high organic loading")
-    elif fm < 0.05:
-        warnings.append("Starvation condition")
-
-    return warnings, critical
-
-# =========================================================
 # ENGINE LOGIC
 # =========================================================
 def decision_engine(do, mlss, nh3, svi, srt, fm, plant):
@@ -242,6 +195,53 @@ if not warnings and not critical:
 svi = calc_svi(sv30, mlss)
 srt = calc_srt(mlss, volume, was_flow, was_mlss)
 fm = calc_fm(flow, bod, mlss, volume)
+
+# =========================================================
+# INPUT VALIDATION LAYER (ADD HERE)
+# =========================================================
+def input_validator(do, mlss, nh3, svi, srt, fm):
+    warnings = []
+    critical = []
+
+    # DO
+    if do < 0:
+        critical.append("DO impossible (negative value)")
+    elif do < 1:
+        warnings.append("Very low DO - process failure likely")
+    elif do > 10:
+        warnings.append("Unusually high DO - sensor check recommended")
+
+    # MLSS
+    if mlss < 500:
+        critical.append("Severe biomass loss risk")
+    elif mlss < 1500:
+        warnings.append("Low biomass concentration")
+
+    # NH3
+    if nh3 > 50:
+        critical.append("Extreme ammonia loading")
+    elif nh3 > 20:
+        warnings.append("High ammonia load")
+
+    # SVI
+    if svi > 200:
+        warnings.append("Severe bulking condition")
+    elif svi > 150:
+        warnings.append("Bulking risk")
+
+    # SRT
+    if srt < 2:
+        critical.append("System collapse risk (very low SRT)")
+    elif srt < 5:
+        warnings.append("Low SRT - unstable biomass")
+
+    # F/M
+    if fm > 1:
+        warnings.append("Very high organic loading")
+    elif fm < 0.05:
+        warnings.append("Starvation condition")
+
+    return warnings, critical
 
 # =========================================================
 # ENGINE
