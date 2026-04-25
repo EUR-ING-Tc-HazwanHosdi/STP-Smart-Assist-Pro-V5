@@ -316,6 +316,11 @@ score = stability_score(svi, mlss, do, srt, fm)
 st.metric("Score", score)
 st.subheader("📄 Engineering Report")
 
+def generate_pdf(data, result, score, filename="STP_Report.pdf"):
+    doc = SimpleDocTemplate(filename)
+    styles = getSampleStyleSheet()
+    content = []
+
 if st.button("Generate PDF Report"):
     file_path = generate_pdf(data, result, score)
 
