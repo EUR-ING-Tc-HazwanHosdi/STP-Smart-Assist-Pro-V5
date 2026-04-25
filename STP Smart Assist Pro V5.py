@@ -188,49 +188,41 @@ def generate_pdf(data, result, filename="stp_report.pdf"):
     styles = getSampleStyleSheet()
     content = []
 
-    def add(title, value):
-        content.append(Paragraph(title, styles["Heading2"]))
-        content.append(Paragraph(str(value), styles["Normal"]))
-        content.append(Spacer(1, 10))
+    def add(title, items):
+        content.append(Paragraph(f"=== {title} ===", styles["Heading2"]))
 
-    # TITLE
-    content.append(Paragraph("STP SMART ASSIST REPORT", styles["Title"]))
-    content.append(Spacer(1, 15))
+        if not items:
+            content.append(Paragraph("No data available", styles["Normal"]))
+            return
 
-    # INPUT DATA
-    add("INPUT DATA", "")
-    for k, v in data.items():
-        content.append(Paragraph(f"{k}: {v}", styles["Normal"]))
+        if isinstance(items, list):
+            for i in items:
+                content.append(Paragraph(f"• {i}", styles["Normal"]))
+        else:
+            content.append(Paragraph(str(items), styles["Normal"]))
 
-    content.append(Spacer(1, 10))
+        content.append(Spacer(1, 12))
 
-    # STATUS
+    # HEADER
+    content.append(Paragraph("🌊 STP SMART ASSIST REPORT", styles["Title"]))
+    content.append(Spacer(1, 20))
+
+    # INPUT DATA (FORCE DISPLAY)
+    add("INPUT DATA", [f"{k}: {v}" for k, v in data.items()])
+
+    # ENGINE RESULTS (FORCE SAFETY)
     add("STATUS", result.get("status", "N/A"))
     add("ISSUE", result.get("issue", "N/A"))
 
-    # ROOT CAUSE
-    add("ROOT CAUSE", "")
-    for r in result.get("root_cause", []):
-        content.append(Paragraph(f"• {r}", styles["Normal"]))
+    add("ROOT CAUSE", result.get("root_cause", ["No root cause detected"]))
+    add("IMPACT", result.get("impact", ["No impact detected"]))
+    add("ACTIONS", result.get("actions", ["Maintain operation"]))
 
-    content.append(Spacer(1, 10))
+    add("CONFIDENCE", result.get("confidence", "UNKNOWN"))
 
-    # IMPACT
-    add("IMPACT", "")
-    for i in result.get("impact", []):
-        content.append(Paragraph(f"• {i}", styles["Normal"]))
-
-    content.append(Spacer(1, 10))
-
-    # ACTIONS
-    add("ACTIONS", "")
-    for a in result.get("actions", []):
-        content.append(Paragraph(f"• {a}", styles["Normal"]))
-
-    content.append(Spacer(1, 10))
-
-    # CONFIDENCE
-    add("CONFIDENCE", result.get("confidence", "N/A"))
+    # FINAL SAFETY LINE (VERY IMPORTANT)
+    content.append(Spacer(1, 20))
+    content.append(Paragraph("END OF REPORT", styles["Normal"]))
 
     doc.build(content)
     return filename
