@@ -1,12 +1,28 @@
 import streamlit as st
 import numpy as np
+import pandas as pd
 import json
 import os
+from datetime import datetime
 
 # =========================================================
 # CONFIG
 # =========================================================
-st.set_page_config("STP SCADA HMI v5 + Training Mode", layout="wide")
+st.set_page_config("STP SCADA HMI V6", layout="wide")
+
+# =========================================================
+# DARK THEME (COMMERCIAL LOOK)
+# =========================================================
+st.markdown("""
+<style>
+body {
+    background-color: #0e1117;
+}
+h1, h2, h3, h4 {
+    color: #ffffff;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # =========================================================
 # PLANT CONFIG
@@ -31,75 +47,83 @@ def calc_fm(flow, bod, mlss, volume):
     return (flow * bod) / (mlss * volume) if mlss > 0 and volume > 0 else 0
 
 # =========================================================
-# TRAINING EXPLANATION ENGINE
+# KPI CARD
 # =========================================================
-def explain_parameter(param, value):
-
-    if param == "DO":
-        if value < 1:
-            return "🔴 Critical: No oxygen → biological system failing"
-        elif value < 2:
-            return "🟠 Low oxygen → nitrification stress"
-        else:
-            return "🟢 Healthy oxygen level"
-
-    if param == "SRT":
-        if value < 3:
-            return "🔴 Very low SRT → sludge washout risk"
-        elif value < 5:
-            return "🟠 Low SRT → unstable biomass"
-        elif value <= 15:
-            return "🟢 Optimal sludge age"
-        else:
-            return "🟠 High SRT → old sludge accumulation"
-
-    if param == "NH3":
-        if value > 20:
-            return "🔴 Ammonia overload → nitrification failure"
-        elif value > 10:
-            return "🟠 Elevated ammonia"
-        else:
-            return "🟢 Stable nitrogen removal"
-
-    if param == "SVI":
-        if value > 180:
-            return "🔴 Severe bulking"
-        elif value > 150:
-            return "🟠 Bulking risk"
-        else:
-            return "🟢 Good settling"
-
-    return "No interpretation available"
+def kpi_card(title, value, color):
+    st.markdown(f"""
+    <div style="
+        background-color:{color};
+        padding:18px;
+        border-radius:12px;
+        text-align:center;
+        color:white;">
+        <h4>{title}</h4>
+        <h2>{value}</h2>
+    </div>
+    """, unsafe_allow_html=True)
 
 # =========================================================
-# CONTROL ENGINE (HMI STYLE)
+# AI INSIGHT ENGINE
+# =========================================================
+def ai_insight(do, nh3, svi, srt, fm, plant):
+
+    insight = []
+
+    if do < 1:
+        insight.append("Critical oxygen depletion → biomass respiration collapsing.")
+
+    if nh3 > 20:
+        insight.append("Nitrification failure → check aeration & sludge age.")
+
+    if svi > 180:
+        insight.append("Severe sludge bulking → filament dominance suspected.")
+
+    if srt < 5:
+        insight.append("Low sludge age → biomass washout risk.")
+
+    config = PLANT_CONFIG[plant]
+    fm_min, fm_max = config["fm_range"]
+
+    if fm > fm_max:
+        insight.append("Organic overloading detected (High F/M).")
+
+    elif fm < fm_min:
+        insight.append("Underloading condition (Low F/M).")
+
+    if not insight:
+        insight.append("Process stable with balanced kinetics.")
+
+    return insight
+
+# =========================================================
+# CONTROL ENGINE
 # =========================================================
 def control_actions(do, nh3, svi, srt):
 
     actions = []
 
     if do < 1:
-        actions.append("🔥 Increase blower output (+40–50%)")
+        actions.append("Increase blower output (+50%)")
 
     elif do < 2:
-        actions.append("⚙️ Slight increase aeration (+10–20%)")
+        actions.append("Increase aeration (+20%)")
 
     if nh3 > 15:
-        actions.append("⚠️ Reduce influent load / equalization needed")
+        actions.append("Reduce influent load / equalization")
 
     if svi > 180:
-        actions.append("⚙️ Reduce sludge wasting (control bulking)")
+        actions.append("Adjust sludge wasting strategy")
 
     if srt < 5:
-        actions.append("🧪 Stop sludge wasting immediately")
+        actions.append("Stop sludge wasting immediately")
 
     if not actions:
-        actions.append("🟢 Maintain current operation")
+        actions.append("Maintain current operation")
 
     return actions
 
 # =========================================================
-# PLANT HEALTH INDEX
+# HEALTH SCORE
 # =========================================================
 def plant_health(do, nh3, svi, srt):
 
@@ -112,29 +136,35 @@ def plant_health(do, nh3, svi, srt):
     elif nh3 > 10: score -= 15
 
     if svi > 180: score -= 25
-
     if srt < 5: score -= 25
 
     return max(score, 0)
 
 # =========================================================
-# TRAINING MODE UI
+# LOGGING
 # =========================================================
-st.sidebar.title("🎓 Training Mode")
+def log_data(data):
+    with open("plant_log.json", "a") as f:
+        f.write(json.dumps(data) + "\n")
 
-training_mode = st.sidebar.toggle("Enable Training Overlay", value=True)
+# =========================================================
+# SIDEBAR
+# =========================================================
+st.sidebar.title("⚙️ System Control")
+
+training_mode = st.sidebar.toggle("Training Mode", True)
 
 level = st.sidebar.selectbox(
-    "Operator Level",
-    ["Beginner", "Technician", "Engineer"]
+    "User Level",
+    ["Operator", "Technician", "Engineer"]
 )
 
-# =========================================================
-# INPUTS
-# =========================================================
-st.title("🏭 STP SCADA HMI CONTROL v5 + Training System")
+plant = st.sidebar.selectbox("Plant Type", list(PLANT_CONFIG.keys()))
 
-plant = st.selectbox("Plant Type", list(PLANT_CONFIG.keys()))
+# =========================================================
+# INPUT PANEL
+# =========================================================
+st.title("🏭 STP SCADA HMI V6")
 
 col1, col2 = st.columns(2)
 
@@ -152,87 +182,108 @@ with col2:
     bod = st.number_input("BOD", value=250.0)
 
 # =========================================================
-# CALCULATIONS
+# CALC
 # =========================================================
 svi = calc_svi(sv30, mlss)
 srt = calc_srt(mlss, volume, was_flow, was_mlss)
 fm = calc_fm(flow, bod, mlss, volume)
-
 health = plant_health(do, nh3, svi, srt)
+
 actions = control_actions(do, nh3, svi, srt)
+insights = ai_insight(do, nh3, svi, srt, fm, plant)
 
 # =========================================================
-# DASHBOARD
+# KPI DASHBOARD
 # =========================================================
-st.subheader("📊 Live Process Overview")
+k1, k2, k3, k4 = st.columns(4)
 
-c1, c2, c3, c4 = st.columns(4)
+kpi_card("Health", f"{health}/100",
+         "#2ecc71" if health > 70 else "#e74c3c")
 
-c1.metric("Plant Health", f"{health}/100")
-c2.metric("DO", f"{do:.2f}")
-c3.metric("NH3", f"{nh3:.2f}")
-c4.metric("SRT (days)", f"{srt:.2f}")
+kpi_card("DO", f"{do:.2f}", "#3498db")
+kpi_card("NH3", f"{nh3:.2f}", "#f39c12")
+kpi_card("SRT", f"{srt:.2f}", "#9b59b6")
 
 # =========================================================
-# ALARMS (HMI STYLE)
+# STATUS
 # =========================================================
 st.subheader("🚨 System Status")
 
 if health < 40:
-    st.error("🔴 CRITICAL OPERATION STATE")
+    st.error("CRITICAL STATE")
 elif health < 70:
-    st.warning("🟠 DEGRADED PERFORMANCE")
+    st.warning("DEGRADED PERFORMANCE")
 else:
-    st.success("🟢 STABLE OPERATION")
+    st.success("STABLE OPERATION")
 
 st.progress(health)
 
 # =========================================================
-# CONTROL ACTIONS
+# MAIN PANELS
 # =========================================================
-st.subheader("⚙️ Operator Action Panel")
+colA, colB = st.columns(2)
 
-for a in actions:
-    st.write("👉", a)
+# CONTROL PANEL
+with colA:
+    st.subheader("⚙️ Control Actions")
+
+    for a in actions:
+        st.write("👉", a)
+
+# AI PANEL
+with colB:
+    st.subheader("🧠 AI Insights")
+
+    for i in insights:
+        st.write("•", i)
 
 # =========================================================
-# TRAINING OVERLAY MODE
+# TREND SIMULATION
+# =========================================================
+st.subheader("📈 Process Trend (Simulated)")
+
+trend = pd.DataFrame({
+    "Time": range(20),
+    "DO": np.random.normal(do, 0.3, 20),
+    "NH3": np.random.normal(nh3, 1, 20)
+})
+
+st.line_chart(trend.set_index("Time"))
+
+# =========================================================
+# TRAINING MODE
 # =========================================================
 if training_mode:
-
     st.subheader("🎓 Training Overlay")
 
-    st.info("Operator guidance system for process understanding")
+    if level == "Operator":
+        st.info("Basic operation guidance enabled")
 
-    st.write("### 🧪 DO (Dissolved Oxygen)")
-    st.write(explain_parameter("DO", do))
-
-    st.write("### 🧪 SRT (Sludge Retention Time)")
-    st.write(explain_parameter("SRT", srt))
-
-    st.write("### 🧪 NH3 (Ammonia)")
-    st.write(explain_parameter("NH3", nh3))
-
-    st.write("### 🧪 SVI (Sludge Volume Index)")
-    st.write(explain_parameter("SVI", svi))
-
-# =========================================================
-# WHAT IF SIMULATION (TRAINING TOOL)
-# =========================================================
-if training_mode:
+    elif level == "Engineer":
+        st.write("F/M Ratio:", fm)
+        st.write("SVI:", svi)
 
     st.subheader("🧭 What-If Simulation")
 
     sim_do = st.slider("Simulate DO", 0.0, 8.0, float(do))
-    st.write("DO Impact:", explain_parameter("DO", sim_do))
-
-    sim_srt = st.slider("Simulate SRT", 0.0, 20.0, float(srt))
-    st.write("SRT Impact:", explain_parameter("SRT", sim_srt))
+    st.write("Impact:", "Low DO risk" if sim_do < 2 else "Healthy")
 
 # =========================================================
-# ENGINEERING DATA (ADVANCED VIEW)
+# ENGINEERING VIEW
 # =========================================================
-with st.expander("🔍 Engineering View"):
+with st.expander("🔍 Advanced Engineering Data"):
     st.write("SVI:", svi)
     st.write("SRT:", srt)
     st.write("F/M:", fm)
+
+# =========================================================
+# LOGGING
+# =========================================================
+log_data({
+    "time": str(datetime.now()),
+    "DO": do,
+    "NH3": nh3,
+    "SRT": srt,
+    "SVI": svi,
+    "Health": health
+})
