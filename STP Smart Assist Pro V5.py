@@ -288,6 +288,9 @@ for c in compliance_check(svi, do, nh3, srt):
     st.write("•", c)
 
 # PDF
+st.session_state["report_data"] = data.copy()
+st.session_state["report_result"] = result.copy()
+
 if st.button("Generate PDF"):
     f = generate_pdf(data, result)
     with open(f, "rb") as file:
