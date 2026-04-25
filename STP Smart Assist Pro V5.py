@@ -49,6 +49,47 @@ def calc_fm(flow, bod, mlss, volume):
     return (flow * bod) / (mlss * volume) if mlss and volume else 0
 
 # =========================================================
+# INPUT VALIDATION (FIXED POSITION)
+# =========================================================
+def input_validator(do, mlss, nh3, svi, srt, fm):
+    warnings = []
+    critical = []
+
+    if do < 0:
+        critical.append("DO impossible (negative value)")
+    elif do < 1:
+        warnings.append("Very low DO - process failure likely")
+    elif do > 10:
+        warnings.append("Unusually high DO - sensor check recommended")
+
+    if mlss < 500:
+        critical.append("Severe biomass loss risk")
+    elif mlss < 1500:
+        warnings.append("Low biomass concentration")
+
+    if nh3 > 50:
+        critical.append("Extreme ammonia loading")
+    elif nh3 > 20:
+        warnings.append("High ammonia load")
+
+    if svi > 200:
+        warnings.append("Severe bulking condition")
+    elif svi > 150:
+        warnings.append("Bulking risk")
+
+    if srt < 2:
+        critical.append("System collapse risk (very low SRT)")
+    elif srt < 5:
+        warnings.append("Low SRT - unstable biomass")
+
+    if fm > 1:
+        warnings.append("Very high organic loading")
+    elif fm < 0.05:
+        warnings.append("Starvation condition")
+
+    return warnings, critical
+
+# =========================================================
 # ENGINE LOGIC
 # =========================================================
 def decision_engine(do, mlss, nh3, svi, srt, fm, plant):
@@ -62,7 +103,6 @@ def decision_engine(do, mlss, nh3, svi, srt, fm, plant):
         "actions": []
     }
 
-    # CRITICAL FAILURE
     if mlss < 500 or srt < cfg["srt_min"]:
         return {
             "status": "🔴 CRITICAL",
@@ -71,7 +111,6 @@ def decision_engine(do, mlss, nh3, svi, srt, fm, plant):
             "actions": ["Stop wasting sludge", "Increase SRT immediately"]
         }
 
-    # CONDITIONS
     if do < 2:
         result["issues"].append("Low DO")
         result["actions"].append("Increase aeration")
@@ -101,7 +140,7 @@ def decision_engine(do, mlss, nh3, svi, srt, fm, plant):
     return result
 
 # =========================================================
-# SIMPLE ML MODEL
+# ML MODEL
 # =========================================================
 def train_model():
     data = load_data()
@@ -127,9 +166,9 @@ def predict_risk(model, x):
     return model.predict_proba([x])[0][1]
 
 # =========================================================
-# PDF GENERATOR (FIXED SAFE VERSION)
+# PDF GENERATOR
 # =========================================================
-def generate_pdf(data, result, score):
+def generate_pdf(result, score):
     filename = "STP_Report_V8_3.pdf"
 
     doc = SimpleDocTemplate(filename)
@@ -154,7 +193,6 @@ def generate_pdf(data, result, score):
     content.append(Paragraph(f"STABILITY SCORE: {score}/100", styles["Heading2"]))
 
     doc.build(content)
-
     return filename
 
 # =========================================================
@@ -164,32 +202,27 @@ st.title("🌊 STP Smart Assist Pro V8.3 - AI ENGINE SYSTEM")
 
 plant = st.selectbox("Plant Type", list(PLANT_CONFIG.keys()))
 
-sv30 = st.number_input("SV30", value=250.0, step=None)
-mlss = st.number_input("MLSS", value=3000.0, step=None)
-do = st.number_input("DO", value=2.0, step=None)
-nh3 = st.number_input("NH3", value=5.0, step=None)
+sv30 = st.number_input("SV30", value=250.0)
+mlss = st.number_input("MLSS", value=3000.0)
+do = st.number_input("DO", value=2.0)
+nh3 = st.number_input("NH3", value=5.0)
 
-volume = st.number_input("Volume", value=500.0, step=None)
-was_flow = st.number_input("WAS Flow", value=50.0, step=None)
-was_mlss = st.number_input("WAS MLSS", value=8000.0, step=None)
+volume = st.number_input("Volume", value=500.0)
+was_flow = st.number_input("WAS Flow", value=50.0)
+was_mlss = st.number_input("WAS MLSS", value=8000.0)
 
-flow = st.number_input("Flow", value=1000.0, step=None)
-bod = st.number_input("BOD", value=250.0, step=None)
-
-# =========================================================
-# SAFE DERIVED CALCULATIONS (ALWAYS FIRST)
-# =========================================================
-if mlss > 0 and volume > 0:
-    svi = calc_svi(sv30, mlss)
-    srt = calc_srt(mlss, volume, was_flow, was_mlss)
-    fm = calc_fm(flow, bod, mlss, volume)
-else:
-    svi = 0
-    srt = 0
-    fm = 0
+flow = st.number_input("Flow", value=1000.0)
+bod = st.number_input("BOD", value=250.0)
 
 # =========================================================
-# NOW SAFE TO VALIDATE
+# SAFE CALCULATIONS (ONCE ONLY)
+# =========================================================
+svi = calc_svi(sv30, mlss)
+srt = calc_srt(mlss, volume, was_flow, was_mlss)
+fm = calc_fm(flow, bod, mlss, volume)
+
+# =========================================================
+# VALIDATION
 # =========================================================
 warnings, critical = input_validator(do, mlss, nh3, svi, srt, fm)
 
@@ -205,66 +238,12 @@ if not warnings and not critical:
     st.success("🟢 Inputs within safe engineering range")
 
 # =========================================================
-# CALCULATIONS
-# =========================================================
-svi = calc_svi(sv30, mlss)
-srt = calc_srt(mlss, volume, was_flow, was_mlss)
-fm = calc_fm(flow, bod, mlss, volume)
-
-# =========================================================
-# INPUT VALIDATION LAYER (ADD HERE)
-# =========================================================
-def input_validator(do, mlss, nh3, svi, srt, fm):
-    warnings = []
-    critical = []
-
-    # DO
-    if do < 0:
-        critical.append("DO impossible (negative value)")
-    elif do < 1:
-        warnings.append("Very low DO - process failure likely")
-    elif do > 10:
-        warnings.append("Unusually high DO - sensor check recommended")
-
-    # MLSS
-    if mlss < 500:
-        critical.append("Severe biomass loss risk")
-    elif mlss < 1500:
-        warnings.append("Low biomass concentration")
-
-    # NH3
-    if nh3 > 50:
-        critical.append("Extreme ammonia loading")
-    elif nh3 > 20:
-        warnings.append("High ammonia load")
-
-    # SVI
-    if svi > 200:
-        warnings.append("Severe bulking condition")
-    elif svi > 150:
-        warnings.append("Bulking risk")
-
-    # SRT
-    if srt < 2:
-        critical.append("System collapse risk (very low SRT)")
-    elif srt < 5:
-        warnings.append("Low SRT - unstable biomass")
-
-    # F/M
-    if fm > 1:
-        warnings.append("Very high organic loading")
-    elif fm < 0.05:
-        warnings.append("Starvation condition")
-
-    return warnings, critical
-
-# =========================================================
 # ENGINE
 # =========================================================
 result = decision_engine(do, mlss, nh3, svi, srt, fm, plant)
 
 # =========================================================
-# ML PREDICTION
+# ML
 # =========================================================
 model = train_model()
 risk = predict_risk(model, [do, mlss, nh3, svi, srt, fm])
@@ -273,9 +252,12 @@ risk = predict_risk(model, [do, mlss, nh3, svi, srt, fm])
 # SCORE
 # =========================================================
 score = 100
-if do < 2: score -= 20
-if svi > 150: score -= 20
-if nh3 > 10: score -= 20
+if do < 2:
+    score -= 20
+if svi > 150:
+    score -= 20
+if nh3 > 10:
+    score -= 20
 
 # =========================================================
 # OUTPUT
@@ -295,7 +277,7 @@ else:
 st.metric("Stability Score", score)
 
 # =========================================================
-# SAVE MEMORY (LEARNING)
+# SAVE MEMORY
 # =========================================================
 if st.button("Save Case to AI Memory"):
     data = load_data()
@@ -317,15 +299,7 @@ if st.button("Save Case to AI Memory"):
 # PDF EXPORT
 # =========================================================
 if st.button("Generate PDF Report"):
-    file = generate_pdf(
-        {
-            "SVI": svi,
-            "SRT": srt,
-            "F/M": fm
-        },
-        result,
-        score
-    )
+    file = generate_pdf(result, score)
 
     with open(file, "rb") as f:
         st.download_button(
