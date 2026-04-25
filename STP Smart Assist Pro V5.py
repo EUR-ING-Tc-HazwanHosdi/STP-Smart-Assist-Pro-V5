@@ -307,7 +307,8 @@ if st.button("Generate PDF Report"):
             file_name="STP_Report.pdf",
             mime="application/pdf"
         )
-
+print("DATA RECEIVED:", data)
+print("RESULT RECEIVED:", result)
 # IMAGE
 img = st.file_uploader("Upload Image")
 if img:
