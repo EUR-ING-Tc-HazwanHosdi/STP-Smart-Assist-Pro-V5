@@ -324,7 +324,16 @@ def generate_pdf(data, result, score, filename="STP_Report.pdf"):
 if st.button("Generate PDF Report"):
     file_path = generate_pdf(data, result, score)
 
+if file_path and os.path.exists(file_path):
     with open(file_path, "rb") as f:
+        st.download_button(
+            "Download STP Report",
+            f,
+            file_name="STP_Report.pdf",
+            mime="application/pdf"
+        )
+else:
+    st.error("PDF generation failed. Please try again.")
         st.download_button(
             "Download STP Report",
             f,
