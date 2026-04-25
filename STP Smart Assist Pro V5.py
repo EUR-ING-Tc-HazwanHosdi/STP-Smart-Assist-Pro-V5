@@ -211,17 +211,17 @@ st.title("🌊 STP Smart Assist Pro V8.3 - AI ENGINE SYSTEM")
 
 plant = st.selectbox("Plant Type", list(PLANT_CONFIG.keys()))
 
-sv30 = st.number_input("SV30", 250.0)
-mlss = st.number_input("MLSS", 3000.0)
-do = st.number_input("DO", 2.0)
-nh3 = st.number_input("NH3", 5.0)
+sv30 = st.number_input("SV30", value=250.0, step=None)
+mlss = st.number_input("MLSS", value=3000.0, step=None)
+do = st.number_input("DO", value=2.0, step=None)
+nh3 = st.number_input("NH3", value=5.0, step=None)
 
-volume = st.number_input("Volume", 500.0)
-was_flow = st.number_input("WAS Flow", 50.0)
-was_mlss = st.number_input("WAS MLSS", 8000.0)
+volume = st.number_input("Volume", value=500.0, step=None)
+was_flow = st.number_input("WAS Flow", value=50.0, step=None)
+was_mlss = st.number_input("WAS MLSS", value=8000.0, step=None)
 
-flow = st.number_input("Flow", 1000.0)
-bod = st.number_input("BOD", 250.0)
+flow = st.number_input("Flow", value=1000.0, step=None)
+bod = st.number_input("BOD", value=250.0, step=None)
 
 warnings, critical = input_validator(do, mlss, nh3, svi, srt, fm)
 
