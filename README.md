@@ -72,3 +72,22 @@ To clone, set up, and run this HMI terminal locally, execute the following comma
    ```bash
    git clone [https://github.com/EUR-ING-Tc-HazwanHosdi/STPsmartassistV2.git](https://github.com/EUR-ING-Tc-HazwanHosdi/STPsmartassistV2.git)
    cd STPsmartassistV2
+
+2. Install library dependencies:
+
+Bash
+pip install -r requirements.txt
+
+3. Launch the application core:
+Bash
+streamlit run STP_Smart_Assist_Pro_V5.py
+
+📁 Repository Blueprint
+Plaintext
+├── .gitignore                  # Excludes standard __pycache__ and local environments
+├── ChatGPT Image Jun 4...      # System application branding asset
+├── LICENSE                     # Repository licensing and utilization terms
+├── README.md                   # Comprehensive portfolio and documentation overview
+├── STP_Smart_Assist_Pro_V5.py  # Main HMI terminal application core code
+├── plant_log.json              # Live system append log for engineering telemetry
+└── requirements.txt            # Application package dependencies
