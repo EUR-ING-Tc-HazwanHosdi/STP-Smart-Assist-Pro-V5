@@ -171,6 +171,15 @@ plant = st.sidebar.selectbox("Plant Type", list(PLANT_CONFIG.keys()))
 st.markdown("<h1 style='margin-bottom: 0px;'>🏭 STP SMART ASSIST PRO</h1>", unsafe_allow_html=True)
 st.markdown("<p style='color: #53637A; font-size: 14px; margin-top: 0px;'>HMI Core Terminal Enterprise V5.0</p>", unsafe_allow_html=True)
 
+with st.expander("📘 System Dashboard User Manual", expanded=False):
+    st.markdown("""
+    ### 🏭 Core HMI Functionality
+    * **Telemetry Ingestion:** Validates live inputs ($SV_{30}$, $MLSS$, $DO$) against real-time mass calculations.
+    * **Dynamic Health Score:** Evaluates operational health on a scale from 0 to 100%. Deductions are instantly triggered by oxygen depletion, nitrification shocks, or sludge aging issues.
+    * **Control Automation Protocol:** Translates process anomalies into immediate, clear corrective actions for operators.
+    * **AIMeCHA Process Analytics:** Monitors underlying kinetic indicators, alerting you to organic overloads ($F/M$) or biomass washouts before they impact performance.
+    """)
+
 # =========================================================
 # INPUT PANEL (WITH COLLAPSIBLE CONTAINER SHIELD)
 # =========================================================
