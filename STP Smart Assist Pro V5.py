@@ -154,7 +154,7 @@ plant = st.sidebar.selectbox("Plant Type", list(PLANT_CONFIG.keys()))
 # =========================================================
 # INPUT PANEL
 # =========================================================
-st.title("🏭 STP SCADA HMI V6")
+st.title("🏭 STP SMART ASSIST PRO V.5.0")
 
 col1, col2 = st.columns(2)
 
