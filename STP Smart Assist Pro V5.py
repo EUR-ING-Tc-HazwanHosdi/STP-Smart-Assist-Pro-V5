@@ -6,9 +6,17 @@ import os
 from datetime import datetime
 
 # =========================================================
-# CONFIG
+# CONFIG & LOGO LINKING
 # =========================================================
-st.set_page_config("STP SCADA HMI V6", layout="wide")
+# URL pointing to your uploaded GitHub image asset
+LOGO_URL = "https://raw.githubusercontent.com/assets/ChatGPT%20Image%20Jun%204,%202026,%2007_18_35%20AM.png"
+
+# Using the logo as the browser favicon
+st.set_page_config(
+    page_title="STP SCADA HMI V6", 
+    page_icon=LOGO_URL, 
+    layout="wide"
+)
 
 # =========================================================
 # DARK THEME (COMMERCIAL LOOK)
@@ -66,18 +74,13 @@ def kpi_card(title, value, color):
 # AI INSIGHT ENGINE
 # =========================================================
 def ai_insight(do, nh3, svi, srt, fm, plant):
-
     insight = []
-
     if do < 1:
         insight.append("Critical oxygen depletion → biomass respiration collapsing.")
-
     if nh3 > 20:
         insight.append("Nitrification failure → check aeration & sludge age.")
-
     if svi > 180:
         insight.append("Severe sludge bulking → filament dominance suspected.")
-
     if srt < 5:
         insight.append("Low sludge age → biomass washout risk.")
 
@@ -86,58 +89,43 @@ def ai_insight(do, nh3, svi, srt, fm, plant):
 
     if fm > fm_max:
         insight.append("Organic overloading detected (High F/M).")
-
     elif fm < fm_min:
         insight.append("Underloading condition (Low F/M).")
 
     if not insight:
         insight.append("Process stable with balanced kinetics.")
-
     return insight
 
 # =========================================================
 # CONTROL ENGINE
 # =========================================================
 def control_actions(do, nh3, svi, srt):
-
     actions = []
-
     if do < 1:
         actions.append("Increase blower output (+50%)")
-
     elif do < 2:
         actions.append("Increase aeration (+20%)")
-
     if nh3 > 15:
         actions.append("Reduce influent load / equalization")
-
     if svi > 180:
         actions.append("Adjust sludge wasting strategy")
-
     if srt < 5:
         actions.append("Stop sludge wasting immediately")
-
     if not actions:
         actions.append("Maintain current operation")
-
     return actions
 
 # =========================================================
 # HEALTH SCORE
 # =========================================================
 def plant_health(do, nh3, svi, srt):
-
     score = 100
-
     if do < 1: score -= 40
     elif do < 2: score -= 20
-
     if nh3 > 20: score -= 30
     elif nh3 > 10: score -= 15
-
     if svi > 180: score -= 25
     if srt < 5: score -= 25
-
     return max(score, 0)
 
 # =========================================================
@@ -148,8 +136,10 @@ def log_data(data):
         f.write(json.dumps(data) + "\n")
 
 # =========================================================
-# SIDEBAR
+# SIDEBAR (LOGO INTEGRATED)
 # =========================================================
+# Renders the AIMeCHA Logo image right at the top of the sidebar
+st.sidebar.image(LOGO_URL, use_container_width=True)
 st.sidebar.title("⚙️ System Control")
 
 training_mode = st.sidebar.toggle("Training Mode", True)
@@ -197,12 +187,15 @@ insights = ai_insight(do, nh3, svi, srt, fm, plant)
 # =========================================================
 k1, k2, k3, k4 = st.columns(4)
 
-kpi_card("Health", f"{health}/100",
-         "#2ecc71" if health > 70 else "#e74c3c")
-
-kpi_card("DO", f"{do:.2f}", "#3498db")
-kpi_card("NH3", f"{nh3:.2f}", "#f39c12")
-kpi_card("SRT", f"{srt:.2f}", "#9b59b6")
+# Dynamic color for health card logic
+with k1:
+    kpi_card("Health", f"{health}/100", "#2ecc71" if health > 70 else "#e74c3c")
+with k2:
+    kpi_card("DO", f"{do:.2f}", "#3498db")
+with k3:
+    kpi_card("NH3", f"{nh3:.2f}", "#f39c12")
+with k4:
+    kpi_card("SRT", f"{srt:.2f}", "#9b59b6")
 
 # =========================================================
 # STATUS
@@ -226,14 +219,12 @@ colA, colB = st.columns(2)
 # CONTROL PANEL
 with colA:
     st.subheader("⚙️ Control Actions")
-
     for a in actions:
         st.write("👉", a)
 
 # AI PANEL
 with colB:
     st.subheader("🧠 AI Insights")
-
     for i in insights:
         st.write("•", i)
 
@@ -258,13 +249,11 @@ if training_mode:
 
     if level == "Operator":
         st.info("Basic operation guidance enabled")
-
     elif level == "Engineer":
         st.write("F/M Ratio:", fm)
         st.write("SVI:", svi)
 
     st.subheader("🧭 What-If Simulation")
-
     sim_do = st.slider("Simulate DO", 0.0, 8.0, float(do))
     st.write("Impact:", "Low DO risk" if sim_do < 2 else "Healthy")
 
