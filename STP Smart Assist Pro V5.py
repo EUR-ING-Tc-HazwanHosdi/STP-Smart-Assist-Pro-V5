@@ -13,7 +13,7 @@ LOGO_URL = "ChatGPT Image Jun 4, 2026, 07_18_35 AM.png"
 
 # Using the logo as the browser favicon
 st.set_page_config(
-    page_title="STP SCADA HMI V6", 
+    page_title="STP SMART ASSIST PRO V.5.0", 
     page_icon=LOGO_URL, 
     layout="wide"
 )
