@@ -9,7 +9,7 @@ from datetime import datetime
 # CONFIG & LOGO LINKING
 # =========================================================
 # URL pointing to your uploaded GitHub image asset
-LOGO_URL = "https://raw.githubusercontent.com/assets/ChatGPT%20Image%20Jun%204,%202026,%2007_18_35%20AM.png"
+LOGO_URL = "ChatGPT Image Jun 4, 2026, 07_18_35 AM.png"
 
 # Using the logo as the browser favicon
 st.set_page_config(
