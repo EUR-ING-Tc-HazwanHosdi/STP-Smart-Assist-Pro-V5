@@ -8,10 +8,8 @@ from datetime import datetime
 # =========================================================
 # CONFIG & LOGO LINKING
 # =========================================================
-# URL pointing to your uploaded GitHub image asset
 LOGO_URL = "ChatGPT Image Jun 4, 2026, 07_18_35 AM.png"
 
-# Using the logo as the browser favicon
 st.set_page_config(
     page_title="STP SMART ASSIST PRO V.5.0", 
     page_icon=LOGO_URL, 
@@ -19,16 +17,23 @@ st.set_page_config(
 )
 
 # =========================================================
-# DARK THEME (COMMERCIAL LOOK)
+# ADVANCED COMMERCIAL DARK THEME CSS
 # =========================================================
 st.markdown("""
 <style>
-body {
-    background-color: #0e1117;
-}
-h1, h2, h3, h4 {
-    color: #ffffff;
-}
+    /* Base App Styling */
+    .stApp {
+        background-color: #0B0E14;
+    }
+    h1, h2, h3, h4 {
+        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        font-weight: 600;
+        letter-spacing: -0.5px;
+    }
+    /* Input border polish */
+    div[data-testid="stMetricValue"] {
+        font-family: 'Courier New', monospace;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -55,18 +60,27 @@ def calc_fm(flow, bod, mlss, volume):
     return (flow * bod) / (mlss * volume) if mlss > 0 and volume > 0 else 0
 
 # =========================================================
-# KPI CARD
+# HIGH-ATTRACTION KPI CARD
 # =========================================================
-def kpi_card(title, value, color):
+def kpi_card(title, value, color, unit=""):
     st.markdown(f"""
     <div style="
-        background-color:{color};
-        padding:18px;
-        border-radius:12px;
-        text-align:center;
-        color:white;">
-        <h4>{title}</h4>
-        <h2>{value}</h2>
+        background: linear-gradient(135deg, #161B25 0%, #0F121A 100%);
+        border-left: 4px solid {color};
+        border-top: 1px solid #232B3A;
+        border-right: 1px solid #232B3A;
+        border-bottom: 1px solid #232B3A;
+        padding: 16px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        margin-bottom: 12px;">
+        <div style="color: #8A96A8; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">
+            {title}
+        </div>
+        <div style="display: flex; align-items: baseline; margin-top: 4px;">
+            <span style="color: white; font-size: 26px; font-weight: 700; font-family: monospace;">{value}</span>
+            <span style="color: #4B5666; font-size: 13px; margin-left: 4px;">{unit}</span>
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -138,8 +152,8 @@ def log_data(data):
 # =========================================================
 # SIDEBAR (LOGO INTEGRATED)
 # =========================================================
-# Renders the AIMeCHA Logo image right at the top of the sidebar
 st.sidebar.image(LOGO_URL, use_container_width=True)
+st.sidebar.markdown("<div style='margin-top: -15px;'></div>", unsafe_allow_html=True)
 st.sidebar.title("⚙️ System Control")
 
 training_mode = st.sidebar.toggle("Training Mode", True)
@@ -152,24 +166,30 @@ level = st.sidebar.selectbox(
 plant = st.sidebar.selectbox("Plant Type", list(PLANT_CONFIG.keys()))
 
 # =========================================================
-# INPUT PANEL
+# MAIN APP HEADER
 # =========================================================
-st.title("🏭 STP SMART ASSIST PRO V.5.0")
+st.markdown("<h1 style='margin-bottom: 0px;'>🏭 STP SMART ASSIST PRO</h1>", unsafe_allow_html=True)
+st.markdown("<p style='color: #53637A; font-size: 14px; margin-top: 0px;'>HMI Core Terminal Enterprise V5.0</p>", unsafe_allow_html=True)
 
-col1, col2 = st.columns(2)
+# =========================================================
+# INPUT PANEL (WITH COLLAPSIBLE CONTAINER SHIELD)
+# =========================================================
+with st.container(border=True):
+    st.markdown("<p style='font-size: 12px; font-weight:600; text-transform:uppercase; color:#8A96A8; letter-spacing:0.5px; margin-bottom: 15px;'>📡 Telemetry Ingestion Desk</p>", unsafe_allow_html=True)
+    col1, col2 = st.columns(2)
 
-with col1:
-    sv30 = st.number_input("SV30", value=250.0)
-    mlss = st.number_input("MLSS", value=3000.0)
-    do = st.number_input("DO", value=2.0)
+    with col1:
+        sv30 = st.number_input("SV30 (mL/L)", value=250.0)
+        mlss = st.number_input("MLSS (mg/L)", value=3000.0)
+        do = st.number_input("DO (mg/L)", value=2.0)
 
-with col2:
-    nh3 = st.number_input("NH3", value=5.0)
-    volume = st.number_input("Volume", value=500.0)
-    was_flow = st.number_input("WAS Flow", value=50.0)
-    was_mlss = st.number_input("WAS MLSS", value=8000.0)
-    flow = st.number_input("Flow", value=1000.0)
-    bod = st.number_input("BOD", value=250.0)
+    with col2:
+        nh3 = st.number_input("NH3 (mg/L)", value=5.0)
+        volume = st.number_input("Reactor Volume (m³)", value=500.0)
+        was_flow = st.number_input("WAS Flow (m³/d)", value=50.0)
+        was_mlss = st.number_input("WAS MLSS (mg/L)", value=8000.0)
+        flow = st.number_input("Influent Flow (m³/d)", value=1000.0)
+        bod = st.number_input("BOD (mg/L)", value=250.0)
 
 # =========================================================
 # CALC
@@ -185,85 +205,93 @@ insights = ai_insight(do, nh3, svi, srt, fm, plant)
 # =========================================================
 # KPI DASHBOARD
 # =========================================================
+st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
 k1, k2, k3, k4 = st.columns(4)
 
-# Dynamic color for health card logic
+health_color = "#2ecc71" if health > 70 else ("#f1c40f" if health >= 40 else "#e74c3c")
+
 with k1:
-    kpi_card("Health", f"{health}/100", "#2ecc71" if health > 70 else "#e74c3c")
+    kpi_card("System Health", f"{health}/100", health_color, unit="%")
 with k2:
-    kpi_card("DO", f"{do:.2f}", "#3498db")
+    kpi_card("Dissolved Oxygen", f"{do:.2f}", "#3498db", unit="mg/L")
 with k3:
-    kpi_card("NH3", f"{nh3:.2f}", "#f39c12")
+    kpi_card("Ammonia Nitrogen", f"{nh3:.2f}", "#f39c12", unit="mg/L")
 with k4:
-    kpi_card("SRT", f"{srt:.2f}", "#9b59b6")
+    kpi_card("Sludge Age (SRT)", f"{srt:.2f}", "#9b59b6", unit="Days")
 
 # =========================================================
-# STATUS
+# STATUS ALERT LINE
 # =========================================================
-st.subheader("🚨 System Status")
-
 if health < 40:
-    st.error("CRITICAL STATE")
+    st.error("🚨 **CRITICAL STATE** — Biological parameters require emergency adjustment.")
 elif health < 70:
-    st.warning("DEGRADED PERFORMANCE")
+    st.warning("⚠️ **DEGRADED PERFORMANCE** — Sub-optimal process variables detected.")
 else:
-    st.success("STABLE OPERATION")
+    st.success("✨ **STABLE OPERATION** — Plant balance operating within standard parameters.")
 
-st.progress(health)
+st.progress(int(health))
 
 # =========================================================
-# MAIN PANELS
+# MAIN PANELS (CLEAN BLOCK CONTAINER LAYOUT)
 # =========================================================
+st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
 colA, colB = st.columns(2)
 
 # CONTROL PANEL
 with colA:
-    st.subheader("⚙️ Control Actions")
-    for a in actions:
-        st.write("👉", a)
+    with st.container(border=True):
+        st.subheader("⚙️ Control Automation Protocol")
+        for a in actions:
+            st.markdown(f"<span style='color: #E2E8F0;'>👉 {a}</span>", unsafe_allow_html=True)
 
 # AI PANEL
 with colB:
-    st.subheader("🧠 AI Insights")
-    for i in insights:
-        st.write("•", i)
+    with st.container(border=True):
+        st.subheader("🧠 Operational Core Insights")
+        for i in insights:
+            st.markdown(f"<span style='color: #E2E8F0;'>• {i}</span>", unsafe_allow_html=True)
 
 # =========================================================
 # TREND SIMULATION
 # =========================================================
-st.subheader("📈 Process Trend (Simulated)")
+st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
+st.subheader("📈 Process Trend Real-Time Simulation")
 
 trend = pd.DataFrame({
-    "Time": range(20),
-    "DO": np.random.normal(do, 0.3, 20),
-    "NH3": np.random.normal(nh3, 1, 20)
+    "Time Tick": range(20),
+    "DO Sensor Probe": np.random.normal(do, 0.15, 20),
+    "NH3 Analytical Loop": np.random.normal(nh3, 0.5, 20)
 })
 
-st.line_chart(trend.set_index("Time"))
+st.line_chart(trend.set_index("Time Tick"))
 
 # =========================================================
 # TRAINING MODE
 # =========================================================
 if training_mode:
-    st.subheader("🎓 Training Overlay")
+    st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
+    with st.container(border=True):
+        st.subheader("🎓 Active Simulation Overlay")
 
-    if level == "Operator":
-        st.info("Basic operation guidance enabled")
-    elif level == "Engineer":
-        st.write("F/M Ratio:", fm)
-        st.write("SVI:", svi)
+        if level == "Operator":
+            st.info("💡 Basic configuration assistance active. Monitor DO levels closely during peak inflow hours.")
+        elif level == "Engineer":
+            ec1, ec2 = st.columns(2)
+            ec1.metric("Calculated Kinetic F/M Ratio", f"{fm:.3f}")
+            ec2.metric("Sludge Volume Index (SVI)", f"{svi:.1f} mL/g")
 
-    st.subheader("🧭 What-If Simulation")
-    sim_do = st.slider("Simulate DO", 0.0, 8.0, float(do))
-    st.write("Impact:", "Low DO risk" if sim_do < 2 else "Healthy")
+        st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
+        st.markdown("**What-If Matrix Calibration**")
+        sim_do = st.slider("Simulate DO Variance", 0.0, 8.0, float(do), label_visibility="collapsed")
+        st.write("Dynamic Evaluation:", "🚨 Critical low DO risk" if sim_do < 2 else "✅ Kinetic balance protected")
 
 # =========================================================
 # ENGINEERING VIEW
 # =========================================================
-with st.expander("🔍 Advanced Engineering Data"):
-    st.write("SVI:", svi)
-    st.write("SRT:", srt)
-    st.write("F/M:", fm)
+with st.expander("🔍 Advanced Process Registers"):
+    st.write("Calculated SVI:", svi)
+    st.write("Calculated SRT:", srt)
+    st.write("Calculated F/M:", fm)
 
 # =========================================================
 # LOGGING
